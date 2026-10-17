@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
-*.pyc
+*.pycresults/label_sheet.txt 
+results/*_run1.json 
+src/make_label_sheet.py 
+src/review.py

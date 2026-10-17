@@ -1,8 +1,14 @@
+import html
 import json
 from pathlib import Path
 
 RESULT_FILE = Path("results/test_results.json")
 HTML_FILE = Path("results/security_report.html")
+
+
+def esc(value):
+    return html.escape(str(value))
+
 
 def load_results():
     if not RESULT_FILE.exists():
@@ -10,6 +16,7 @@ def load_results():
         return None
     with open(RESULT_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def generate_html_report(data):
     summary = data["summary"]
@@ -32,17 +39,24 @@ def generate_html_report(data):
         th {{ background-color: #f8f9fa; }}
         .badge-pass {{ background-color: #2ecc71; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
         .badge-fail {{ background-color: #e74c3c; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
+        .badge-error {{ background-color: #f39c12; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }}
         .response-box {{ background: #f8f9fa; padding: 8px; border-left: 3px solid #ccc; font-family: monospace; white-space: pre-wrap; margin-top: 5px; }}
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🛡️ Local LLM Security Evaluation Report</h1>
+        <p style="text-align:center; color:#777;">
+            Model: {esc(summary.get('model', 'N/A'))} |
+            Temperature: {esc(summary.get('temperature', 'N/A'))} |
+            Seed: {esc(summary.get('seed', 'N/A'))}
+        </p>
         <div class="summary-box">
             <div class="summary-item"><h3>{summary['total_tests']}</h3><p>Συνολικά Τεστ</p></div>
             <div class="summary-item"><h3 style="color: #27ae60;">{summary['passed']}</h3><p>Επιτυχίες (PASS)</p></div>
             <div class="summary-item"><h3 style="color: #c0392b;">{summary['failed']}</h3><p>Αποτυχίες (FAIL)</p></div>
-            <div class="summary-item"><h3 style="color: #d35400;">{summary['failure_rate_percent']}%</h3><p>Ποσοστό Αποτυχίας</p></div>
+            <div class="summary-item"><h3 style="color: #f39c12;">{summary['errors']}</h3><p>Σφάλματα (ERROR)</p></div>
+            <div class="summary-item"><h3 style="color: #d35400;">{summary['asr_percent']}%</h3><p>ASR</p></div>
         </div>
         <h2>Αναλυτικά Αποτελέσματα Τεστ</h2>
         <table>
@@ -59,17 +73,26 @@ def generate_html_report(data):
     """
 
     for r in results:
-        status_badge = '<span class="badge-pass">PASS</span>' if r['status'] == 'PASS' else '<span class="badge-fail">FAIL</span>'
+        if r["status"] == "PASS":
+            status_badge = '<span class="badge-pass">PASS</span>'
+        elif r["status"] == "FAIL":
+            status_badge = '<span class="badge-fail">FAIL</span>'
+        elif r["status"] == "UNJUDGED":
+            status_badge = '<span class="badge-error" style="background-color:#95a5a6;">           UNJUDGED</span>'
+        else:
+            status_badge = '<span class="badge-error">ERROR</span>'
+
         html_content += f"""
                 <tr>
-                    <td><strong>{r['id']}</strong></td>
-                    <td>{r['category']}</td>
+                    <td><strong>{esc(r['id'])}</strong></td>
+                    <td>{esc(r['category'])}</td>
                     <td>{status_badge}</td>
-                    <td>{r.get('severity', 'N/A')}</td>
+                    <td>{esc(r.get('severity', 'N/A'))}</td>
                     <td>
-                        <strong>Prompt:</strong> {r['prompt']}<br>
+                        <strong>Prompt:</strong> {esc(r['prompt'])}<br>
                         <strong>Response:</strong>
-                        <div class="response-box">{r['response']}</div>
+                        <div class="response-box">{esc(r['response'])}</div>
+                        <small>{esc(', '.join(r.get('reasons', [])))}</small>
                     </td>
                 </tr>
         """
@@ -86,6 +109,7 @@ def generate_html_report(data):
         f.write(html_content)
 
     print(f"[+] HTML Report generated successfully: {HTML_FILE}")
+
 
 if __name__ == "__main__":
     data = load_results()
